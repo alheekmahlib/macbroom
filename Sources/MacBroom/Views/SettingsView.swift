@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("launchAtLogin") private var launchAtLogin = false
+    @AppStorage("launchAtLogin") private var launchAtLogin = AppDelegate.isLoginItemEnabled()
     @AppStorage("autoCleanEnabled") private var autoCleanEnabled = false
     @AppStorage("cleanFrequency") private var cleanFrequency = "Weekly"
     @State private var isVisible = false
@@ -260,6 +260,9 @@ struct SettingsView: View {
             .padding(.horizontal, 24)
         }
         .onAppear { isVisible = true }
+        .onChange(of: launchAtLogin) { newValue in
+            AppDelegate.setLoginItemEnabled(newValue)
+        }
     }
 }
 

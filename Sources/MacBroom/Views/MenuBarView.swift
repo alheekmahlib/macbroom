@@ -237,10 +237,25 @@ struct MenuBarPopoverView: View {
                     openAppAndNavigate(to: .settings)
                 }
                 
+                // Quit button
+                smallButton(icon: "power") {
+                    // This calls applicationShouldTerminate which checks shouldReallyQuit
+                    // We set it via UserDefaults as a simple cross-context signal
+                    UserDefaults.standard.set(true, forKey: "forceQuit")
+                    NSApplication.shared.terminate(nil)
+                }
+                
                 Spacer()
                 
                 Button(action: {
-                    NSApp.activate(ignoringOtherApps: true)
+                    NSApplication.shared.activate(ignoringOtherApps: true)
+                    // Show main window
+                    for window in NSApplication.shared.windows {
+                        if !(window is NSPanel) && !window.styleMask.contains(.utilityWindow) {
+                            window.makeKeyAndOrderFront(nil)
+                        }
+                    }
+                    NSApplication.shared.setActivationPolicy(.regular)
                 }) {
                     HStack(spacing: 5) {
                         Image(systemName: "sparkle")
@@ -299,7 +314,13 @@ struct MenuBarPopoverView: View {
     // MARK: - Navigation
     private func openAppAndNavigate(to page: AppState.Page) {
         appState.selectedPage = page
-        NSApp.activate(ignoringOtherApps: true)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        for window in NSApplication.shared.windows {
+            if !(window is NSPanel) && !window.styleMask.contains(.utilityWindow) {
+                window.makeKeyAndOrderFront(nil)
+            }
+        }
+        NSApplication.shared.setActivationPolicy(.regular)
     }
     
     // MARK: - Components
