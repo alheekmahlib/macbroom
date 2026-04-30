@@ -1,0 +1,24 @@
+# Build
+.build/
+.swiftpm/
+*.xcodeproj/
+*.xcworkspace/
+!SweepMac.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
+*.dmg
+*.zip
+
+# Secrets
+supabase-auth-schema.sql
+
+# Screenshots (local only)
+screenshots/
+
+# IDE
+*.swp
+*~
+.vscode/

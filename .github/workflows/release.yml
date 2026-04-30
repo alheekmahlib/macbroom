@@ -1,0 +1,120 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '5.9'
+      
+      - name: Build Release
+        run: swift build -c release
+      
+      - name: Create App Bundle
+        run: |
+          mkdir -p MacBroom.app/Contents/MacOS
+          mkdir -p MacBroom.app/Contents/Resources
+          mkdir -p MacBroom.app/Contents/Frameworks
+          
+          cp .build/release/MacBroom MacBroom.app/Contents/MacOS/MacBroom
+          cp Sources/MacBroom/Assets/Info.plist MacBroom.app/Contents/Info.plist
+          cp Sources/MacBroom/Assets/AppIcon.png MacBroom.app/Contents/Resources/AppIcon.png 2>/dev/null || true
+          cp Sources/MacBroom/Assets/MenuBarIcon.png MacBroom.app/Contents/Resources/MenuBarIcon.png 2>/dev/null || true
+          cp Sources/MacBroom/Assets/Logo.png MacBroom.app/Contents/Resources/Logo.png 2>/dev/null || true
+      
+      - name: Code Sign
+        if: ${{ env.DEVELOPER_ID }}
+        env:
+          DEVELOPER_ID: ${{ secrets.DEVELOPER_ID_CERT }}
+          DEVELOPER_ID_PASSWORD: ${{ secrets.DEVELOPER_ID_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Import certificate
+          echo "$DEVELOPER_ID" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import certificate.p12 -k build.keychain -P "$DEVELOPER_ID_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" build.keychain
+          
+          # Sign
+          /usr/bin/codesign --deep --force --options runtime --sign "Developer ID Application: Hawazen Mahmood (QMY79485Y6)" MacBroom.app
+      
+      - name: Notarize
+        if: ${{ env.APPLE_ID }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          # Create zip for notarization
+          ditto -c -k --keepParent MacBroom.app MacBroom-notarize.zip
+          
+          # Submit for notarization
+          xcrun notarytool submit MacBroom-notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+          
+          # Staple
+          xcrun stapler staple MacBroom.app
+      
+      - name: Create DMG
+        run: |
+          # Create DMG with background
+          hdiutil create -volname "MacBroom" -srcfolder MacBroom.app -ov -format UDZO MacBroom.dmg
+      
+      - name: Create ZIP
+        run: |
+          ditto -c -k --keepParent MacBroom.app MacBroom.zip
+      
+      - name: Generate EdDSA Signature
+        if: ${{ env.SPARKLE_PRIVATE_KEY }}
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # Install sparkle tools
+          brew install sparkle
+          # Sign the update
+          sign_update MacBroom.zip
+          
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep CFBundleShortVersionString Sources/MacBroom/Assets/Info.plist | awk -F'<' '{print $2}' | awk -F'>' '{print $2}')
+          BUILD=$(grep CFBundleVersion Sources/MacBroom/Assets/Info.plist | tail -1 | awk -F'<' '{print $2}' | awk -F'>' '{print $2}')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build=$BUILD" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: MacBroom v${{ steps.version.outputs.version }}
+          files: |
+            MacBroom.dmg
+            MacBroom.zip
+          body: |
+            ## MacBroom v${{ steps.version.outputs.version }}
+            
+            ### Download
+            - **MacBroom.dmg** — Recommended. Open and drag to Applications.
+            - **MacBroom.zip** — Alternative.
+            
+            ### Requirements
+            - macOS 13.0 (Ventura) or later
+            - Apple Silicon or Intel Mac
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
