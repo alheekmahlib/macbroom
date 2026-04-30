@@ -6,11 +6,11 @@ struct MenuBarPopoverView: View {
     @StateObject private var ramViewModel = RamBoosterViewModel()
     
     private var usedGB: Double {
-        Double(appState.totalStorageUsed) / 1_073_741_824
+        Double(appState.totalStorageUsed) / 1_000_000_000
     }
     
     private var totalGB: Double {
-        Double(appState.totalStorageCapacity) / 1_073_741_824
+        Double(appState.totalStorageCapacity) / 1_000_000_000
     }
     
     private var storagePercent: Double {
@@ -289,11 +289,11 @@ struct MenuBarPopoverView: View {
     
     // MARK: - Computed RAM values (from accurate RamBoosterService)
     private var ramUsedGB: Double {
-        Double(ramViewModel.memoryInfo.usedBytes) / 1_073_741_824
+        Double(ramViewModel.memoryInfo.usedBytes) / 1_000_000_000
     }
     
     private var totalRAMGB: Int {
-        Int(Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824)
+        Int(Double(ProcessInfo.processInfo.physicalMemory) / 1_000_000_000)
     }
     
     // MARK: - Navigation

@@ -7,16 +7,16 @@ struct HomeView: View {
     private var lang: AppLanguage { appState.currentLanguage }
     
     private var cleanedGB: String {
-        let gb = Double(appState.cleanedBytes) / 1_073_741_824
+        let gb = Double(appState.cleanedBytes) / 1_000_000_000
         return String(format: "%.1f GB", gb)
     }
     
     private var usedGB: Double {
-        Double(appState.totalStorageUsed) / 1_073_741_824
+        Double(appState.totalStorageUsed) / 1_000_000_000
     }
     
     private var totalGB: Double {
-        Double(appState.totalStorageCapacity) / 1_073_741_824
+        Double(appState.totalStorageCapacity) / 1_000_000_000
     }
     
     private var storagePercent: Double {

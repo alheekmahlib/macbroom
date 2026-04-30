@@ -7,70 +7,61 @@ class CleanerService {
     
     private init() {}
     
-    // MARK: - Default scan targets (NO browser data)
+    // MARK: - Scan Targets (based on technical report + safe paths)
+    
     private let defaultScanTargets: [(CleanCategory, String)] = [
+        // Caches — safe to delete (apps recreate them)
         (.systemCache, "~/Library/Caches"),
-        (.appCache, "~/Library/Application Support"),
+        
+        // Logs — safe to delete, grow over time
         (.logs, "~/Library/Logs"),
+        (.logs, "/Library/Logs"),
+        
+        // Xcode — biggest junk for developers
         (.xcodeDerived, "~/Library/Developer/Xcode/DerivedData"),
+        
+        // Mail Downloads — attachments previewed but forgotten
+        (.mailDownloads, "~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads"),
+        
+        // Trash
         (.trash, "~/.Trash"),
     ]
     
-    private let browserScanTargets: [(CleanCategory, String)] = [
-        (.browserData, "~/Library/Safari"),
-        (.browserData, "~/Library/Caches/Google"),
-        (.browserData, "~/Library/Caches/Firefox"),
+    private let browserCacheTargets: [(CleanCategory, String)] = [
+        // Safari
+        (.browserCache, "~/Library/Caches/com.apple.Safari"),
+        (.browserCache, "~/Library/Safari/LocalStorage"),
+        
+        // Chrome
+        (.browserCache, "~/Library/Caches/Google/Chrome"),
+        (.browserCache, "~/Library/Application Support/Google/Chrome/Default/Cache"),
+        
+        // Firefox
+        (.browserCache, "~/Library/Caches/Firefox"),
+        (.browserCache, "~/Library/Application Support/Firefox/Profiles"),
+        
+        // Edge
+        (.browserCache, "~/Library/Caches/Microsoft Edge"),
     ]
     
     // MARK: - Scan
+    
     func scan(includeBrowserData: Bool = false, progress: @escaping (String) -> Void, completion: @escaping ([CleanableItem]) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let fm = FileManager.default
             var results: [CleanableItem] = []
             
             var targets = self.defaultScanTargets
             if includeBrowserData {
-                targets.append(contentsOf: self.browserScanTargets)
+                targets.append(contentsOf: self.browserCacheTargets)
             }
             
             for (category, rawPath) in targets {
                 let path = NSString(string: rawPath).expandingTildeInPath
                 progress(path)
                 
-                var isDir: ObjCBool = false
-                guard fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else { continue }
-                
-                // Trash: special handling — show as single item
-                if category == .trash {
-                    let totalSize = self.calculateDirSize(at: path)
-                    if totalSize > 0 {
-                        let itemCount = (try? fm.contentsOfDirectory(atPath: path).count) ?? 0
-                        let file = CleanableFile(
-                            name: "Trash Items",
-                            path: path,
-                            size: totalSize,
-                            safetyLevel: .safe
-                        )
-                        results.append(CleanableItem(
-                            category: .trash,
-                            path: path,
-                            size: totalSize,
-                            files: [file]
-                        ))
-                    }
-                    continue
-                }
-                
-                let files = self.scanDirectory(at: path, category: category)
-                let totalSize = files.reduce(Int64(0)) { $0 + $1.size }
-                
-                if !files.isEmpty {
-                    results.append(CleanableItem(
-                        category: category,
-                        path: path,
-                        size: totalSize,
-                        files: files
-                    ))
+                let item = self.scanTarget(path: path, category: category)
+                if let item = item {
+                    results.append(item)
                 }
             }
             
@@ -80,7 +71,36 @@ class CleanerService {
         }
     }
     
+    // MARK: - Scan Single Target
+    
+    private func scanTarget(path: String, category: CleanCategory) -> CleanableItem? {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else { return nil }
+        
+        // Trash: special handling — show as single item
+        if category == .trash {
+            let totalSize = calculateAllocatedSize(at: path)
+            guard totalSize > 0 else { return nil }
+            
+            let file = CleanableFile(
+                name: "Trash Items",
+                path: path,
+                size: totalSize,
+                safetyLevel: .safe
+            )
+            return CleanableItem(category: .trash, path: path, size: totalSize, files: [file])
+        }
+        
+        let files = scanDirectory(at: path, category: category)
+        guard !files.isEmpty else { return nil }
+        
+        let totalSize = files.reduce(Int64(0)) { $0 + $1.size }
+        return CleanableItem(category: category, path: path, size: totalSize, files: files)
+    }
+    
     // MARK: - Scan Directory
+    
     private func scanDirectory(at path: String, category: CleanCategory) -> [CleanableFile] {
         let fm = FileManager.default
         var files: [CleanableFile] = []
@@ -95,12 +115,12 @@ class CleanerService {
             
             let size: Int64
             if isDir.boolValue {
-                size = calculateDirSize(at: itemPath)
+                size = calculateAllocatedSize(at: itemPath)
             } else {
-                size = (try? fm.attributesOfItem(atPath: itemPath)[.size] as? Int64) ?? 0
+                size = getFileAllocatedSize(at: itemPath)
             }
             
-            guard size > 100_000 else { continue } // > 100KB
+            guard size > 100_000 else { continue } // > 100KB threshold
             
             let safety = determineSafety(path: itemPath, category: category)
             
@@ -117,28 +137,103 @@ class CleanerService {
         return files.sorted { $0.size > $1.size }
     }
     
-    // MARK: - Safety
+    // MARK: - Safety Rules
+    
     private func determineSafety(path: String, category: CleanCategory) -> SafetyLevel {
         let filename = (path as NSString).lastPathComponent.lowercased()
         
+        // Never delete these — critical system files
         if filename.contains("keychain") { return .unsafe }
         if filename.hasPrefix("com.apple.shared") || filename.hasPrefix("com.apple.login") { return .unsafe }
+        if filename.contains("security") { return .unsafe }
         
-        if category == .systemCache {
+        // Category-specific rules
+        switch category {
+        case .systemCache:
+            // Apple caches may cause temporary issues but are safe
             if filename.hasPrefix("com.apple.") { return .caution }
             return .safe
+            
+        case .logs:
+            return .safe
+            
+        case .xcodeDerived:
+            return .safe // Xcode regenerates these
+            
+        case .browserCache:
+            // Cache files = safe, profile data = caution
+            if filename.contains("bookmarks") || filename.contains("passwords") || filename.contains("cookies") {
+                return .unsafe
+            }
+            if filename.hasSuffix(".sqlite") || filename.hasSuffix(".sqlite-wal") {
+                return .caution // May lose session data
+            }
+            return .safe
+            
+        case .mailDownloads:
+            return .safe // These are already-saved attachments
+            
+        case .trash:
+            return .safe
+            
+        case .appCache:
+            if filename.hasPrefix("com.apple.") { return .caution }
+            return .safe
+            
+        case .downloads:
+            return .caution // User's files — always confirm
         }
-        if category == .logs { return .safe }
-        if category == .xcodeDerived { return .safe }
-        if category == .trash { return .safe }
-        if category == .browserData { return .caution }
-        if category == .appCache { return .caution }
-        
-        return .safe
     }
     
-    // MARK: - Size calculation
-    private func calculateDirSize(at path: String) -> Int64 {
+    // MARK: - Size Calculation (Report Recommendation: allocatedSize)
+    
+    /// Calculate directory size using allocated (physical) size on disk
+    /// This matches Finder more accurately than logical size
+    private func calculateAllocatedSize(at path: String) -> Int64 {
+        let url = URL(fileURLWithPath: path)
+        
+        // Try allocatedSizeOfDirectory (macOS 10.11+)
+        // This gives the actual physical disk usage (handles compression, sparse files)
+        if let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [
+            .fileAllocatedSizeKey,
+            .totalFileAllocatedSizeKey,
+            .isDirectoryKey
+        ], options: [.skipsHiddenFiles], errorHandler: nil) {
+            var totalSize: Int64 = 0
+            var count = 0
+            
+            for case let fileURL as URL in enumerator {
+                count += 1
+                if count > 50_000 { break }
+                
+                if let values = try? fileURL.resourceValues(forKeys: [.fileAllocatedSizeKey, .totalFileAllocatedSizeKey, .isDirectoryKey]) {
+                    if values.isDirectory != true {
+                        totalSize += Int64(values.fileAllocatedSize ?? values.totalFileAllocatedSize ?? 0)
+                    }
+                }
+            }
+            
+            if totalSize > 0 {
+                return totalSize
+            }
+        }
+        
+        // Fallback: FileManager attributes (logical size)
+        return calculateDirSizeFallback(at: path)
+    }
+    
+    /// Get allocated size for a single file
+    private func getFileAllocatedSize(at path: String) -> Int64 {
+        let url = URL(fileURLWithPath: path)
+        if let values = try? url.resourceValues(forKeys: [.fileAllocatedSizeKey, .totalFileAllocatedSizeKey]) {
+            return Int64(values.fileAllocatedSize ?? values.totalFileAllocatedSize ?? 0)
+        }
+        // Fallback
+        return (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+    }
+    
+    /// Fallback: use FileManager enumerator with .size attribute
+    private func calculateDirSizeFallback(at path: String) -> Int64 {
         let fm = FileManager.default
         var totalSize: Int64 = 0
         var count = 0
@@ -160,11 +255,13 @@ class CleanerService {
     }
     
     // MARK: - Clean (simple)
+    
     func cleanFiles(fileIDs: Set<UUID>, from results: [CleanableItem], completion: @escaping (Result<Int64, Error>) -> Void) {
         cleanFilesProgressive(fileIDs: fileIDs, from: results, onProgress: { _, _ in }, completion: completion)
     }
     
-    // MARK: - Clean with progressive updates
+    // MARK: - Clean with Progressive Updates
+    
     func cleanFilesProgressive(
         fileIDs: Set<UUID>,
         from results: [CleanableItem],
@@ -209,56 +306,43 @@ class CleanerService {
                 
                 let sizeBefore: Int64
                 if isDir.boolValue {
-                    sizeBefore = self.calculateDirSize(at: file.path)
+                    sizeBefore = self.calculateAllocatedSize(at: file.path)
                 } else {
-                    sizeBefore = (try? fm.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? file.size
+                    sizeBefore = self.getFileAllocatedSize(at: file.path)
                 }
                 
-                // Try trashItem first, fallback to removeItem
                 do {
                     let url = URL(fileURLWithPath: file.path)
                     
-                // Trash category: permanently delete contents (not the Trash folder itself)
-                    // Everything else: use trashItem (move to trash)
                     if category == .trash {
-                        // Delete contents of Trash, not the .Trash folder
+                        // Trash: permanently delete contents (not the .Trash folder itself)
                         guard let trashContents = try? fm.contentsOfDirectory(atPath: file.path) else {
                             print("⚠️ Could not read trash contents")
                             continue
                         }
-                        var trashCleaned: Int64 = 0
                         for trashItem in trashContents {
                             let trashItemPath = (file.path as NSString).appendingPathComponent(trashItem)
                             do {
                                 try fm.removeItem(atPath: trashItemPath)
-                                let itemSize = self.calculateSizeQuick(at: trashItemPath, originalSize: 0)
-                                trashCleaned += itemSize
                             } catch {
                                 print("⚠️ Could not delete \(trashItem): \(error.localizedDescription)")
                             }
                         }
-                        totalCleaned += max(sizeBefore, trashCleaned)
+                        totalCleaned += sizeBefore
                         print("🗑 Emptied \(trashContents.count) trash items")
                     } else {
-                        // First attempt: trash
+                        // Report recommendation: use trashItem first (gives user undo chance)
                         var trashResult: NSURL?
                         do {
                             try fm.trashItem(at: url, resultingItemURL: &trashResult)
                             print("✅ Trashed: \(file.name) (\(ByteCountFormatter.string(fromByteCount: sizeBefore, countStyle: .file)))")
                         } catch {
-                            // trashItem failed — try removeItem directly
-                            print("⚠️ trashItem failed for \(file.name): \(error.localizedDescription)")
-                            print("   Trying removeItem...")
-                            
+                            // trashItem failed (e.g., cross-volume) — try removeItem
                             try fm.removeItem(at: url)
                             print("✅ Removed: \(file.name)")
                         }
+                        totalCleaned += sizeBefore
                     }
-                    
-                    // For directories: do NOT recreate — user chose to delete it
-                    
-                    totalCleaned += sizeBefore
-                    
                 } catch {
                     let msg = "❌ Failed to delete \(file.name): \(error.localizedDescription)"
                     print(msg)
@@ -279,18 +363,10 @@ class CleanerService {
             }
         }
     }
-    
-    private func calculateSizeQuick(at path: String, originalSize: Int64) -> Int64 {
-        let fm = FileManager.default
-        var isDir: ObjCBool = false
-        if fm.fileExists(atPath: path, isDirectory: &isDir) {
-            return isDir.boolValue ? calculateDirSize(at: path) : ((try? fm.attributesOfItem(atPath: path)[.size] as? Int64) ?? originalSize)
-        }
-        return originalSize
-    }
 }
 
 // MARK: - Errors
+
 enum CleanError: LocalizedError {
     case deleteFailed(String)
     
@@ -302,11 +378,12 @@ enum CleanError: LocalizedError {
 }
 
 // MARK: - Trash Service
+
 extension CleanerService {
     
     func getTrashSize() -> Int64 {
         let trashPath = NSString(string: "~/.Trash").expandingTildeInPath
-        return calculateDirSize(at: trashPath)
+        return calculateAllocatedSize(at: trashPath)
     }
     
     func emptyTrash(progress: @escaping (Int, Int) -> Void, completion: @escaping (Result<Int64, Error>) -> Void) {
@@ -330,7 +407,6 @@ extension CleanerService {
                 do {
                     try fm.removeItem(atPath: itemPath)
                     totalCleaned += size
-                    print("🗑 Emptied: \(item) (\(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)))")
                 } catch {
                     print("⚠️ Failed to empty \(item): \(error.localizedDescription)")
                 }
@@ -338,8 +414,6 @@ extension CleanerService {
                 cleaned += 1
                 progress(cleaned, total)
             }
-            
-            print("🗑 Trash emptied: \(ByteCountFormatter.string(fromByteCount: totalCleaned, countStyle: .file))")
             
             DispatchQueue.main.async {
                 completion(.success(totalCleaned))
@@ -353,9 +427,9 @@ extension CleanerService {
         fm.fileExists(atPath: path, isDirectory: &isDir)
         
         if isDir.boolValue {
-            return calculateDirSize(at: path)
+            return calculateAllocatedSize(at: path)
         } else {
-            return (try? fm.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+            return getFileAllocatedSize(at: path)
         }
     }
 }

@@ -192,7 +192,7 @@ class DiskAnalyzerViewModel: ObservableObject {
             let url = URL(fileURLWithPath: path)
             if let values = try? url.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]) {
                 self.totalCapacityBytes = Int64(values.volumeTotalCapacity ?? 0)
-                let usedGB = Double(self.totalCapacityBytes) / 1_073_741_824.0
+                let usedGB = Double(self.totalCapacityBytes) / 1_000_000_000.0
                 // Rough estimate: user data has ~3000-8000 files per GB
                 // For home dir scan (~80GB used): estimate ~100K files
                 self.estimatedTotalFiles = max(50_000, Int(usedGB * 5000))

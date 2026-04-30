@@ -65,7 +65,8 @@ enum CleanCategory: String, CaseIterable {
     case appCache = "App Cache"
     case logs = "Log Files"
     case xcodeDerived = "Xcode Derived Data"
-    case browserData = "Browser Data"
+    case browserCache = "Browser Cache"
+    case mailDownloads = "Mail Downloads"
     case downloads = "Old Downloads"
     case trash = "Trash"
     
@@ -75,7 +76,8 @@ enum CleanCategory: String, CaseIterable {
         case .appCache: return "app.fill"
         case .logs: return "doc.text.fill"
         case .xcodeDerived: return "hammer.fill"
-        case .browserData: return "globe"
+        case .browserCache: return "globe"
+        case .mailDownloads: return "envelope.fill"
         case .downloads: return "arrow.down.circle.fill"
         case .trash: return "trash.fill"
         }
@@ -87,7 +89,8 @@ enum CleanCategory: String, CaseIterable {
         case .appCache: return .orange
         case .logs: return .gray
         case .xcodeDerived: return .blue
-        case .browserData: return .purple
+        case .browserCache: return .purple
+        case .mailDownloads: return .brown
         case .downloads: return .green
         case .trash: return .red
         }

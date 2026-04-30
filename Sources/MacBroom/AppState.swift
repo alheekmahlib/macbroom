@@ -90,7 +90,7 @@ class AppState: ObservableObject {
         // Network + Temp on background thread
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let speed = Self.getNetworkSpeedLive()
-            let temp = SystemInfoService.shared.getCPUTemperature()
+            let temp = SystemInfoService.shared.getTemperature()
             
             DispatchQueue.main.async {
                 self?.networkUpload = speed.upload
