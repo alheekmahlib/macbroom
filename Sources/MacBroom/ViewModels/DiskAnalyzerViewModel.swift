@@ -436,6 +436,15 @@ class DiskAnalyzerViewModel: ObservableObject {
         for item in rootItems {
             flattenItem(item)
         }
+        // Also flatten any items in navigation display
+        // This ensures selected items in subdirectories are found
+    }
+    
+    /// Flatten a specific list of items and their children into allItemsFlat
+    func flattenItems(_ items: [DiskItem]) {
+        for item in items {
+            flattenItem(item)
+        }
     }
     
     private func flattenItem(_ item: DiskItem) {

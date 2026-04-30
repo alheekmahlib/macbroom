@@ -79,6 +79,11 @@ struct DiskAnalyzerView: View {
                 }
             }
             .animation(.spring(response: 0.6, dampingFraction: 0.8), value: state)
+        .alert("Delete Result", isPresented: $showDeleteAlert, presenting: deleteMessage) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { msg in
+            Text(msg)
+        }
         }
         .onAppear {
             viewModel.loadVolumes()
@@ -969,6 +974,9 @@ struct DiskAnalyzerView: View {
             // Use cached result if available — INSTANT navigation!
             let children = viewModel.loadChildren(for: item.url.path)
             
+            // Flatten children into allItemsFlat so selection/deletion works
+            viewModel.flattenItems(children)
+            
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 navigationPath.append(DiskItem(
                     url: item.url,
@@ -1042,12 +1050,41 @@ struct DiskAnalyzerView: View {
         }
     }
     
+    @State private var deleteMessage: String?
+    @State private var showDeleteAlert: Bool = false
+    
     private func performDelete() {
+        let currentPath: String
+        if navigationPath.isEmpty {
+            currentPath = selectedVolume?.path ?? "/"
+        } else {
+            currentPath = navigationPath.last?.url.path ?? "/"
+        }
+        
         let result = viewModel.deleteSelected()
         if result.deleted > 0 {
-            // Show brief feedback, then rescan
-            let message = "Deleted \(result.deleted) items, freed \(ByteCountFormatter.string(fromByteCount: result.freedBytes, countStyle: .file))"
-            print(message)
+            deleteMessage = "Deleted \(result.deleted) items, freed \(ByteCountFormatter.string(fromByteCount: result.freedBytes, countStyle: .file))"
+        } else if result.failed > 0 {
+            deleteMessage = "Failed to delete \(result.failed) items. Make sure they are not in use."
+        }
+        showDeleteAlert = true
+        
+        // Rebuild items from cache for current path
+        let freshItems = viewModel.loadChildren(for: currentPath)
+        if navigationPath.isEmpty {
+            viewModel.rootItems = freshItems
+        } else if !navigationPath.isEmpty {
+            // Update the last navigation item's children
+            let lastIndex = navigationPath.count - 1
+            navigationPath[lastIndex] = DiskItem(
+                id: navigationPath[lastIndex].id,
+                url: navigationPath[lastIndex].url,
+                name: navigationPath[lastIndex].name,
+                size: navigationPath[lastIndex].size,
+                isDirectory: true,
+                children: freshItems,
+                isSizeLoaded: true
+            )
         }
     }
 }

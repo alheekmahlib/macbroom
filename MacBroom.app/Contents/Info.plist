@@ -6,6 +6,10 @@
     <string>com.alheekmahlib.macbroom</string>
     <key>CFBundleName</key>
     <string>MacBroom</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>
