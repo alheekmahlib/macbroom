@@ -78,7 +78,7 @@ struct ContentView: View {
             set: { appState.licenseManager.showActivationDialog = $0 }
         )) {
             ActivationWindow(licenseManager: appState.licenseManager)
-                .frame(width: 400, height: 460)
+                .frame(width: 400, height: 540)
         }
     }
     

@@ -92,9 +92,8 @@ struct ActivationWindow: View {
                 
                 // Transaction ID input
                 VStack(alignment: .leading, spacing: 6) {
-                    TextField("Enter your Paddle Order ID", text: $activationInput)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 13, design: .monospaced))
+                    PasteableTextField(placeholder: "Enter your Paddle Order ID", text: $activationInput)
+                        .frame(height: 24)
                         .padding(4)
                     
                     if let error = licenseManager.activationError {
@@ -191,5 +190,56 @@ struct ActivationWindow: View {
                 endPoint: .bottom
             )
         )
+    }
+}
+
+// MARK: - Pasteable NSTextField wrapper
+struct PasteableTextField: NSViewRepresentable {
+    var placeholder: String
+    @Binding var text: String
+    var onSubmit: (() -> Void)? = nil
+    
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField()
+        textField.placeholderString = placeholder
+        textField.isBezeled = true
+        textField.bezelStyle = .roundedBezel
+        textField.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        textField.delegate = context.coordinator
+        textField.usesSingleLineMode = true
+        textField.lineBreakMode = .byTruncatingTail
+        return textField
+    }
+    
+    func updateNSView(_ nsTextField: NSTextField, context: Context) {
+        nsTextField.stringValue = text
+        nsTextField.placeholderString = placeholder
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: PasteableTextField
+        
+        init(_ parent: PasteableTextField) {
+            self.parent = parent
+        }
+        
+        func controlTextDidChange(_ obj: Notification) {
+            guard let textField = obj.object as? NSTextField else { return }
+            parent.text = textField.stringValue
+        }
+        
+        func controlTextDidEndEditing(_ obj: Notification) {
+            guard let textField = obj.object as? NSTextField else { return }
+            parent.text = textField.stringValue
+        }
+        
+        func textFieldPressReturn(_ textField: NSTextField) -> Bool {
+            parent.onSubmit?()
+            return true
+        }
     }
 }

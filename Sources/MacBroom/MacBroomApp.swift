@@ -35,7 +35,7 @@ struct MacBroomApp: App {
             ContentView()
                 .environmentObject(appState)
                 .frame(minWidth: 900, minHeight: 600)
-                .background(WindowAccessor())
+                .background(TitleBarAccessor())
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1000, height: 650)
@@ -53,7 +53,7 @@ struct MacBroomApp: App {
     }
 }
 
-struct WindowAccessor: NSViewRepresentable {
+struct TitleBarAccessor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {

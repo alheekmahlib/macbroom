@@ -24,8 +24,20 @@ struct PaddleConfig {
     
     // Product & Price IDs
     static let productId = "pro_01kqgr0jg7e8xc0nd25tgt7kg8"
-    static let priceId = "pri_01kqgre9rdvsf6x659qqfegh2p"
     static let sellerId = "63262"
+    
+    // Price IDs by plan
+    struct Prices {
+        // Monthly
+        static let monthly1Mac = "pri_01kqh0drf99e6b54px0bexn9ac"   // $4.99/mo
+        static let monthly2Macs = "pri_01kqh0drp76rk3czdsm8yx6pq1" // $6.99/mo
+        // Yearly
+        static let yearly1Mac = "pri_01kqh0ds379rf0bwhfpm5khpyp"    // $24.99/yr
+        static let yearly2Macs = "pri_01kqh0dsc8h86j4gr988y8ne3k"  // $39.99/yr
+        // Lifetime
+        static let lifetime1Mac = "pri_01kqh0dsk3tmkzaqgnsghdbwcr"  // $44.99
+        static let lifetime2Macs = "pri_01kqh0dsswdf5fbpfnfm0f0acf" // $59.99
+    }
     
     // Hosted Checkout URLs (pre-created in Paddle Dashboard)
     static let sandboxCheckoutURL = "https://sandbox-pay.paddle.io/hsc_01kqgtgmydc78z2xpzprbcpmmq_xkpvjdzdq0z0k12jbnjsdhfpntjga132"
