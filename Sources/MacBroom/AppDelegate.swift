@@ -3,25 +3,78 @@ import ServiceManagement
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     
-    /// Set to true only when user explicitly clicks Quit from menu bar
-    private var shouldReallyQuit = false
+    var hasShownMainWindow = false
+    
+    static var shared: AppDelegate?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.shared = self
         NSApp.appearance = NSAppearance(named: .darkAqua)
         registerLoginItem()
         
-        // Replace Quit menu item after SwiftUI builds the menu
+        // Catch ALL window openings and close duplicates
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidBecomeKey(_:)),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+        
+        // Handle Apple Events
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleOpenApplication(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kCoreEventClass),
+            andEventID: AEEventID(kAEOpenApplication)
+        )
+        
+        // Replace Quit menu item
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.replaceQuitMenuItem()
         }
+    }
+    
+    // MARK: - Single Window Enforcement
+    
+    @objc private func windowDidBecomeKey(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        if !isRegularWindow(window) { return }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            NSApp.activate(ignoringOtherApps: true)
-            if let window = NSApp.windows.first(where: { $0.isVisible }) {
-                window.backgroundColor = NSColor(red: 0.07, green: 0.09, blue: 0.18, alpha: 1.0)
-                window.isOpaque = false
+        // Count how many regular visible windows we have
+        let regularWindows = NSApp.windows.filter { isRegularWindow($0) && $0.isVisible }
+        
+        if regularWindows.count > 1 && hasShownMainWindow {
+            // Close ALL windows except the last one opened, then show the original
+            for w in regularWindows.dropLast() {
+                w.close()
             }
+            // The remaining window is the new one from WindowGroup — that's fine
         }
+    }
+    
+    // MARK: - Apple Event Handler
+    
+    @objc private func handleOpenApplication(_ event: NSAppleEventDescriptor, withReplyEvent replyEvent: NSAppleEventDescriptor) {
+        // Instead of letting WindowGroup create a new window,
+        // we show the existing one
+        let regularWindows = NSApp.windows.filter { isRegularWindow($0) }
+        
+        if regularWindows.isEmpty {
+            // No window at all — let WindowGroup handle it
+            return
+        }
+        
+        // We have a window — show it and prevent new one
+        // The trick: set activation policy first, which signals macOS
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        
+        for window in regularWindows {
+            window.makeKeyAndOrderFront(self)
+        }
+        
+        // Mark that we've shown the main window — next windowDidBecomeKey will close duplicates
+        hasShownMainWindow = true
     }
     
     // MARK: - Terminate Control
@@ -31,20 +84,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // Check if this is a real quit (from menu bar quit button)
         if UserDefaults.standard.bool(forKey: "forceQuit") {
             UserDefaults.standard.set(false, forKey: "forceQuit")
             return .terminateNow
         }
-        // ⌘Q or menu Quit → just hide
         hideApp()
         return .terminateCancel
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag {
-            showApp()
-        }
+        showApp()
         return true
     }
     
@@ -65,7 +114,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     newQuit.keyEquivalentModifierMask = .command
                     submenu.removeItem(at: index)
                     submenu.insertItem(newQuit, at: index)
-                    print("✅ Quit menu replaced")
                     return
                 }
             }
@@ -79,18 +127,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Show/Hide
     
     func hideApp() {
-        // Hide all regular windows (not panels/popovers)
         for window in NSApp.windows {
             if isRegularWindow(window) {
                 window.orderOut(self)
             }
         }
-        // Remove from Dock by setting activation policy to accessory
         NSApp.setActivationPolicy(.accessory)
+        hasShownMainWindow = true // Mark as shown so duplicates get closed on reopen
     }
     
     func showApp() {
-        // Show in Dock again
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         for window in NSApp.windows {
@@ -98,16 +144,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 window.makeKeyAndOrderFront(self)
             }
         }
-    }
-    
-    /// True quit — only from menu bar Quit button
-    func quitApp() {
-        shouldReallyQuit = true
-        NSApp.terminate(nil)
+        hasShownMainWindow = true
     }
     
     private func isRegularWindow(_ window: NSWindow) -> Bool {
-        // Skip panels (menu bar popover), utility windows, and popups
         if window is NSPanel { return false }
         if window.styleMask.contains(.utilityWindow) { return false }
         if window.level == .popUpMenu || window.level == .statusBar { return false }

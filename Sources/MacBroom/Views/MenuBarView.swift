@@ -248,14 +248,13 @@ struct MenuBarPopoverView: View {
                 Spacer()
                 
                 Button(action: {
+                    NSApplication.shared.setActivationPolicy(.regular)
                     NSApplication.shared.activate(ignoringOtherApps: true)
-                    // Show main window
                     for window in NSApplication.shared.windows {
                         if !(window is NSPanel) && !window.styleMask.contains(.utilityWindow) {
                             window.makeKeyAndOrderFront(nil)
                         }
                     }
-                    NSApplication.shared.setActivationPolicy(.regular)
                 }) {
                     HStack(spacing: 5) {
                         Image(systemName: "sparkle")
@@ -314,13 +313,13 @@ struct MenuBarPopoverView: View {
     // MARK: - Navigation
     private func openAppAndNavigate(to page: AppState.Page) {
         appState.selectedPage = page
+        NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate(ignoringOtherApps: true)
         for window in NSApplication.shared.windows {
             if !(window is NSPanel) && !window.styleMask.contains(.utilityWindow) {
                 window.makeKeyAndOrderFront(nil)
             }
         }
-        NSApplication.shared.setActivationPolicy(.regular)
     }
     
     // MARK: - Components

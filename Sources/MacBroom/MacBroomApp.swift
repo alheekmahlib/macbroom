@@ -5,9 +5,7 @@ struct MacBroomApp: App {
     @StateObject private var appState = AppState()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
-    // Load custom menu bar icon from SPM resource bundle
     private var menuBarImage: Image {
-        // Try SPM resource bundle first
         let candidates: [Bundle] = [
             Bundle.main,
             Bundle(for: AppDelegate.self),
@@ -20,7 +18,6 @@ struct MacBroomApp: App {
                 nsImage.size = NSSize(width: 18, height: 18)
                 return Image(nsImage: nsImage)
             }
-            // Try SPM resource bundle
             if let url = bundle.url(forResource: "MacBroom_MacBroom", withExtension: "bundle"),
                let resourceBundle = Bundle(url: url),
                let path = resourceBundle.path(forResource: "MenuBarIcon", ofType: "png"),
@@ -30,8 +27,6 @@ struct MacBroomApp: App {
                 return Image(nsImage: nsImage)
             }
         }
-        
-        // Fallback to SF Symbol
         return Image(systemName: "sparkle")
     }
     
@@ -58,7 +53,6 @@ struct MacBroomApp: App {
     }
 }
 
-// Helper to configure window appearance
 struct WindowAccessor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
