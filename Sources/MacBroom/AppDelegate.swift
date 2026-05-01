@@ -119,6 +119,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             UserDefaults.standard.set(false, forKey: "forceQuit")
             return .terminateNow
         }
+        
+        // Allow Sparkle to actually terminate the app during updates
+        if UpdateManager.isInstallingUpdate {
+            return .terminateNow
+        }
+        
+        // Also check if Autoupdate process is running (Sparkle's installer)
+        let allApps = NSRunningApplication.runningApplications(withBundleIdentifier: "org.sparkle-project.Sparkle.Autoupdate")
+        let autoupdateRunning = !allApps.isEmpty
+        if autoupdateRunning {
+            return .terminateNow
+        }
+        
         hideApp()
         return .terminateCancel
     }
