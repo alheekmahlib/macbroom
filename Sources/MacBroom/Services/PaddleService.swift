@@ -4,18 +4,18 @@ import AppKit
 // MARK: - Paddle Configuration
 struct PaddleConfig {
     // Sandbox
-    static let sandboxClientToken = "test_2c8cba0f566485fd10488cd7730"
+    static let sandboxApiKey = "REDACTED_PADDLE_KEY"
     static let sandboxApiBase = "https://sandbox-api.paddle.com"
     
     // Production (set when going live)
-    static let productionClientToken = ""
+    static let productionApiKey = ""
     static let productionApiBase = "https://api.paddle.com"
     
     // Current environment
     static var isSandbox: Bool = true
     
-    static var clientToken: String {
-        isSandbox ? sandboxClientToken : productionClientToken
+    static var apiKey: String {
+        isSandbox ? sandboxApiKey : productionApiKey
     }
     
     static var apiBase: String {
@@ -95,7 +95,7 @@ class PaddleService {
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(PaddleConfig.clientToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(PaddleConfig.apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let body: [String: Any] = [
@@ -145,7 +145,7 @@ class PaddleService {
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(PaddleConfig.clientToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(PaddleConfig.apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let (data, response) = try await session.data(for: request)
