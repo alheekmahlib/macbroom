@@ -26,6 +26,10 @@ struct PaddleConfig {
     static let productId = "pro_01kqgr0jg7e8xc0nd25tgt7kg8"
     static let priceId = "pri_01kqgre9rdvsf6x659qqfegh2p"
     static let sellerId = "63262"
+    
+    // Hosted Checkout URLs (pre-created in Paddle Dashboard)
+    static let sandboxCheckoutURL = "https://sandbox-pay.paddle.io/hsc_01kqgtgmydc78z2xpzprbcpmmq_xkpvjdzdq0z0k12jbnjsdhfpntjga132"
+    static let productionCheckoutURL = "" // Create in production dashboard when going live
 }
 
 // MARK: - Paddle API Responses
@@ -88,54 +92,17 @@ class PaddleService {
     
     private init() {}
     
-    // MARK: - Create Transaction & Open Checkout
-    /// Creates a Paddle transaction and opens the checkout URL in browser
-    func openCheckout() async throws {
-        let url = URL(string: "\(PaddleConfig.apiBase)/transactions")!
+    // MARK: - Open Checkout in Browser
+    /// Opens the Paddle Hosted Checkout page
+    func openCheckout() {
+        let urlString = PaddleConfig.isSandbox ? PaddleConfig.sandboxCheckoutURL : PaddleConfig.productionCheckoutURL
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(PaddleConfig.apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body: [String: Any] = [
-            "items": [
-                [
-                    "price_id": PaddleConfig.priceId,
-                    "quantity": 1
-                ]
-            ],
-            "custom_data": [
-                "device_id": SupabaseService.shared.deviceId
-            ]
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw PaddleError.internalError("Invalid response")
+        guard !urlString.isEmpty, let url = URL(string: urlString) else {
+            print("Paddle: No checkout URL configured")
+            return
         }
         
-        let result = try JSONDecoder().decode(PaddleCreateTransactionResponse.self, from: data)
-        
-        if let error = result.error {
-            throw PaddleError.internalError(error.detail ?? error.message ?? "API error")
-        }
-        
-        guard let transaction = result.data else {
-            throw PaddleError.internalError("No transaction data returned")
-        }
-        
-        // Open checkout URL in browser
-        if let checkoutUrlString = transaction.checkout?.url, let checkoutURL = URL(string: checkoutUrlString) {
-            // Save transaction ID for later verification
-            UserDefaults.standard.set(transaction.id, forKey: "macbroom_pending_paddle_tx")
-            NSWorkspace.shared.open(checkoutURL)
-        } else {
-            throw PaddleError.internalError("No checkout URL returned. Transaction ID: \(transaction.id)")
-        }
+        NSWorkspace.shared.open(url)
     }
     
     // MARK: - Verify Transaction

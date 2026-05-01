@@ -215,15 +215,7 @@ class LicenseManager: ObservableObject {
     
     // MARK: - Open Paddle Checkout
     func openPurchase() {
-        Task {
-            do {
-                try await paddle.openCheckout()
-            } catch {
-                await MainActor.run {
-                    activationError = "Could not open checkout: \(error.localizedDescription)"
-                }
-            }
-        }
+        paddle.openCheckout()
     }
     
     // MARK: - Open Order Lookup
