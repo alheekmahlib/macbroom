@@ -29,6 +29,22 @@ class LicenseManager: ObservableObject {
     
     private init() {
         checkLocalLicense()
+        
+        // Check for pending Paddle transaction on startup
+        Task {
+            if let info = try? await paddle.checkPendingTransaction(), info.isValid {
+                await MainActor.run {
+                    isActivated = true
+                    plan = info.plan
+                    billingCycle = info.billingCycle
+                    deviceLimit = info.deviceLimit
+                    email = info.email
+                    expiresAt = info.expiresAt
+                    UserDefaults.standard.set("pending_activated", forKey: "macbroom_paddle_transaction")
+                    supabase.saveLicenseLocally(key: "paddle_pending", info: info)
+                }
+            }
+        }
     }
     
     // MARK: - Check local license on startup
@@ -199,7 +215,15 @@ class LicenseManager: ObservableObject {
     
     // MARK: - Open Paddle Checkout
     func openPurchase() {
-        paddle.openCheckout()
+        Task {
+            do {
+                try await paddle.openCheckout()
+            } catch {
+                await MainActor.run {
+                    activationError = "Could not open checkout: \(error.localizedDescription)"
+                }
+            }
+        }
     }
     
     // MARK: - Open Order Lookup

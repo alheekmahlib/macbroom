@@ -26,124 +26,115 @@ struct PaddleConfig {
     static let productId = "pro_01kqgr0jg7e8xc0nd25tgt7kg8"
     static let priceId = "pri_01kqgre9rdvsf6x659qqfegh2p"
     static let sellerId = "63262"
-    
-    // Checkout URL
-    static var checkoutURL: String {
-        if isSandbox {
-            return "https://sandbox-buy.paddle.com/checkout/inline/\(priceId)"
-        }
-        return "https://buy.paddle.com/checkout/inline/\(priceId)"
-    }
 }
 
-// MARK: - Paddle Transaction Response
-struct PaddleTransactionResponse: Codable {
-    let data: PaddleTransactionData?
-    let meta: PaddleMeta?
-    let error: PaddleError?
+// MARK: - Paddle API Responses
+
+// Create transaction response
+struct PaddleCreateTransactionResponse: Codable {
+    let data: PaddleTransaction?
+    let error: PaddleApiError?
 }
 
-struct PaddleTransactionData: Codable {
+struct PaddleTransaction: Codable {
     let id: String
     let status: String
-    let customData: PaddleCustomData?
+    let checkout: PaddleCheckout?
+    let customData: [String: String]?
     let customerId: String?
-    let billingPeriod: PaddleBillingPeriod?
+    let customerName: String?
+    let email: String?
+    let billing: PaddleBilling?
     
     enum CodingKeys: String, CodingKey {
-        case id, status
+        case id, status, checkout, billing, email
         case customData = "custom_data"
         case customerId = "customer_id"
-        case billingPeriod = "billing_period"
+        case customerName = "customer_name"
     }
 }
 
-struct PaddleBillingPeriod: Codable {
-    let frequency: Int?
-    let interval: String?
+struct PaddleCheckout: Codable {
+    let url: String?
 }
 
-struct PaddleCustomData: Codable {
-    let licenseKey: String?
+struct PaddleBilling: Codable {
+    let paymentMethod: String?
     
     enum CodingKeys: String, CodingKey {
-        case licenseKey = "license_key"
+        case paymentMethod = "payment_method"
     }
 }
 
-struct PaddleMeta: Codable {
-    let requestID: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case requestID = "request_id"
-    }
-}
+// Get transaction response (reuses same structure)
+typealias PaddleGetTransactionResponse = PaddleCreateTransactionResponse
 
-struct PaddleError: Codable {
+// Generic error
+struct PaddleApiError: Codable {
     let code: Int?
     let detail: String?
     let message: String?
-}
-
-// MARK: - Paddle Price Response
-struct PaddlePriceResponse: Codable {
-    let data: PaddlePriceData?
-    let error: PaddleError?
-}
-
-struct PaddlePriceData: Codable {
-    let id: String
-    let unitPrice: PaddleUnitPrice?
-    let billingCycle: PaddleBillingCycle?
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case unitPrice = "unit_price"
-        case billingCycle = "billing_cycle"
-    }
-}
-
-struct PaddleUnitPrice: Codable {
-    let amount: String
-    let currencyCode: String
-    
-    enum CodingKeys: String, CodingKey {
-        case amount
-        case currencyCode = "currency_code"
-    }
-}
-
-struct PaddleBillingCycle: Codable {
-    let interval: String?
-    let frequency: Int?
 }
 
 // MARK: - Paddle Service
 class PaddleService {
     static let shared = PaddleService()
     
-    private let session = URLSession.shared
-    private let jsonDecoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        return decoder
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        return URLSession(configuration: config)
     }()
     
     private init() {}
     
-    // MARK: - Open Checkout in Browser
-    func openCheckout() {
-        // Build checkout URL with price_id
-        var components = URLComponents(string: PaddleConfig.isSandbox 
-            ? "https://sandbox-buy.paddle.com/checkout" 
-            : "https://buy.paddle.com/checkout")!
+    // MARK: - Create Transaction & Open Checkout
+    /// Creates a Paddle transaction and opens the checkout URL in browser
+    func openCheckout() async throws {
+        let url = URL(string: "\(PaddleConfig.apiBase)/transactions")!
         
-        components.queryItems = [
-            URLQueryItem(name: "price_id", value: PaddleConfig.priceId),
-            URLQueryItem(name: "custom_data", value: "{\"device_id\":\"\(SupabaseService.shared.deviceId)\"}")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(PaddleConfig.clientToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "items": [
+                [
+                    "price_id": PaddleConfig.priceId,
+                    "quantity": 1
+                ]
+            ],
+            "custom_data": [
+                "device_id": SupabaseService.shared.deviceId
+            ]
         ]
         
-        if let url = components.url {
-            NSWorkspace.shared.open(url)
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PaddleError.internalError("Invalid response")
+        }
+        
+        let result = try JSONDecoder().decode(PaddleCreateTransactionResponse.self, from: data)
+        
+        if let error = result.error {
+            throw PaddleError.internalError(error.detail ?? error.message ?? "API error")
+        }
+        
+        guard let transaction = result.data else {
+            throw PaddleError.internalError("No transaction data returned")
+        }
+        
+        // Open checkout URL in browser
+        if let checkoutUrlString = transaction.checkout?.url, let checkoutURL = URL(string: checkoutUrlString) {
+            // Save transaction ID for later verification
+            UserDefaults.standard.set(transaction.id, forKey: "macbroom_pending_paddle_tx")
+            NSWorkspace.shared.open(checkoutURL)
+        } else {
+            throw PaddleError.internalError("No checkout URL returned. Transaction ID: \(transaction.id)")
         }
     }
     
@@ -164,79 +155,82 @@ class PaddleService {
         }
         
         if httpResponse.statusCode != 200 {
-            let errorBody = try? JSONDecoder().decode(PaddleTransactionResponse.self, from: data)
-            throw PaddleError.internalError(errorBody?.error?.detail ?? "HTTP \(httpResponse.statusCode)")
+            if let errorBody = try? JSONDecoder().decode(PaddleGetTransactionResponse.self, from: data),
+               let error = errorBody.error {
+                throw PaddleError.internalError(error.detail ?? error.message ?? "HTTP \(httpResponse.statusCode)")
+            }
+            throw PaddleError.internalError("HTTP \(httpResponse.statusCode)")
         }
         
-        let result = try jsonDecoder.decode(PaddleTransactionResponse.self, from: data)
+        let result = try JSONDecoder().decode(PaddleGetTransactionResponse.self, from: data)
         
-        guard let transactionData = result.data else {
+        guard let transaction = result.data else {
             throw PaddleError.internalError("No transaction data")
         }
         
-        // Check if transaction is completed
-        guard transactionData.status == "completed" || transactionData.status == "paid" || transactionData.status == "ready" else {
-            throw PaddleError.internalError("Transaction not completed: \(transactionData.status)")
+        // Check if transaction is completed or ready
+        let validStatuses = ["completed", "paid", "billed"]
+        let isValid = validStatuses.contains(transaction.status)
+        
+        if !isValid && transaction.status == "ready" {
+            // Transaction was created but not yet paid — still allow activation for sandbox testing
+            // In production, you'd want to require "completed" status
         }
         
-        // Create license info from transaction
         let info = LicenseInfo(
-            isValid: true,
+            isValid: isValid || (PaddleConfig.isSandbox && transaction.status == "ready"),
             plan: "pro",
             billingCycle: "lifetime",
             deviceLimit: 1,
-            email: "", // Will be filled from customer data
-            expiresAt: nil, // One-time = lifetime
-            message: nil
+            email: transaction.email ?? "",
+            expiresAt: nil, // One-time purchase = lifetime
+            message: isValid ? nil : "Transaction status: \(transaction.status)"
         )
         
         return info
     }
     
     // MARK: - Activate with Transaction ID
-    /// User enters their Paddle transaction ID or order ID to activate
     func activateWithTransactionId(_ transactionId: String) async throws -> LicenseInfo {
         let trimmedId = transactionId.trimmingCharacters(in: .whitespacesAndNewlines)
         return try await verifyTransaction(transactionId: trimmedId)
     }
     
-    // MARK: - Get Price Info
-    func getPriceInfo() async throws -> (amount: String, currency: String) {
-        let url = URL(string: "\(PaddleConfig.apiBase)/prices/\(PaddleConfig.priceId)")!
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(PaddleConfig.clientToken)", forHTTPHeaderField: "Authorization")
-        
-        let (data, _) = try await session.data(for: request)
-        let result = try jsonDecoder.decode(PaddlePriceResponse.self, from: data)
-        
-        guard let priceData = result.data, let unitPrice = priceData.unitPrice else {
-            throw PaddleError.internalError("Could not fetch price")
+    // MARK: - Check Pending Transaction
+    /// Check if there's a pending transaction from a previous checkout
+    func checkPendingTransaction() async throws -> LicenseInfo? {
+        guard let pendingTx = UserDefaults.standard.string(forKey: "macbroom_pending_paddle_tx") else {
+            return nil
         }
         
-        return (amount: unitPrice.amount, currency: unitPrice.currencyCode)
+        let info = try await verifyTransaction(transactionId: pendingTx)
+        
+        if info.isValid {
+            // Clear pending
+            UserDefaults.standard.removeObject(forKey: "macbroom_pending_paddle_tx")
+            return info
+        }
+        
+        return nil
     }
     
-    // MARK: - Generate Order Lookup URL
-    /// Opens Paddle order lookup page so user can find their transaction ID
+    // MARK: - Open Order Lookup
     func openOrderLookup() {
-        let urlString = PaddleConfig.isSandbox 
-            ? "https://sandbox-buy.paddle.com/order" 
-            : "https://buy.paddle.com/order"
-        if let url = URL(string: urlString) {
+        // Paddle doesn't have a public order lookup page in the new billing system
+        // Instead, direct users to their email for the transaction ID
+        if let url = URL(string: "https://my.paddle.com/orders") {
             NSWorkspace.shared.open(url)
         }
     }
 }
 
 // MARK: - Paddle Errors
-extension PaddleError: LocalizedError {
-    static func internalError(_ message: String) -> PaddleError {
-        return PaddleError(code: 0, detail: message, message: message)
-    }
+enum PaddleError: LocalizedError {
+    case internalError(String)
     
     var errorDescription: String? {
-        detail ?? message ?? "Unknown Paddle error"
+        switch self {
+        case .internalError(let msg): return msg
+        }
     }
 }
