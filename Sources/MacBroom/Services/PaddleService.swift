@@ -30,6 +30,9 @@ struct PaddleConfig {
     // Hosted Checkout URLs (pre-created in Paddle Dashboard)
     static let sandboxCheckoutURL = "https://sandbox-pay.paddle.io/hsc_01kqgtgmydc78z2xpzprbcpmmq_xkpvjdzdq0z0k12jbnjsdhfpntjga132"
     static let productionCheckoutURL = "" // Create in production dashboard when going live
+    
+    // Website pricing page
+    static let websitePricingURL = "https://alheekmahlib.github.io/macbroom-website#pricing"
 }
 
 // MARK: - Paddle API Responses
@@ -93,15 +96,12 @@ class PaddleService {
     private init() {}
     
     // MARK: - Open Checkout in Browser
-    /// Opens the Paddle Hosted Checkout page
+    /// Opens the MacBroom website pricing page — user chooses plan and pays there
     func openCheckout() {
-        let urlString = PaddleConfig.isSandbox ? PaddleConfig.sandboxCheckoutURL : PaddleConfig.productionCheckoutURL
-        
-        guard !urlString.isEmpty, let url = URL(string: urlString) else {
-            print("Paddle: No checkout URL configured")
+        guard let url = URL(string: PaddleConfig.websitePricingURL) else {
+            print("Paddle: Invalid pricing URL")
             return
         }
-        
         NSWorkspace.shared.open(url)
     }
     
