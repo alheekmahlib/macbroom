@@ -7,10 +7,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     static var shared: AppDelegate?
     
+    /// Whether the app is running from /Applications (release build)
+    static var isRunningFromApplications: Bool {
+        Bundle.main.bundlePath.hasPrefix("/Applications/")
+    }
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
         NSApp.appearance = NSAppearance(named: .darkAqua)
-        registerLoginItem()
+        
+        // ===== Single Instance Enforcement =====
+        // If another instance is already running, activate it and quit this one
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.macbroom.app"
+        let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        let otherInstances = runningApps.filter { $0.processIdentifier != currentPID }
+        
+        if !otherInstances.isEmpty {
+            // Activate the existing instance
+            if let existing = otherInstances.first {
+                existing.activate(options: [.activateIgnoringOtherApps])
+                // Send a reopen event to show its window
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            // If we're not the /Applications version, just quit silently
+            if !Self.isRunningFromApplications {
+                NSApp.terminate(nil)
+                return
+            }
+        }
+        
+        // Only register login item if running from /Applications
+        // Debug builds should NEVER register as login items
+        if Self.isRunningFromApplications {
+            registerLoginItem()
+        }
         
         // Catch ALL window openings and close duplicates
         NotificationCenter.default.addObserver(
@@ -157,6 +188,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Login Item
     
     static func isLoginItemEnabled() -> Bool {
+        // Never report enabled for debug builds
+        guard isRunningFromApplications else { return false }
         if #available(macOS 13.0, *) {
             return SMAppService.mainApp.status == .enabled
         }
@@ -164,6 +197,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     static func setLoginItemEnabled(_ enabled: Bool) {
+        // Never register/unregister login items for debug builds
+        guard isRunningFromApplications else {
+            print("⚠️ Skipping login item registration — not running from /Applications")
+            return
+        }
         if #available(macOS 13.0, *) {
             do {
                 if enabled {
