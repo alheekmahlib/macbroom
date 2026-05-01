@@ -38,3 +38,5 @@ echo "🔏 Re-signing..."
 codesign --force --deep --sign - "$APP"
 
 echo "✅ Done! Run 'open $APP' to launch."
+# Remove macOS resource fork files that break codesign
+find "$APP" -name "._*" -delete 2>/dev/null

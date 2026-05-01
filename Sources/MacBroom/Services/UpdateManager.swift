@@ -6,8 +6,8 @@ final class UpdateManager: NSObject, ObservableObject {
     
     static let shared = UpdateManager()
     
-    private let updaterController: SPUStandardUpdaterController
-    let updater: SPUUpdater
+    private var updaterController: SPUStandardUpdaterController?
+    private(set) var updater: SPUUpdater?
     
     @Published var canCheckForUpdates = false
     @Published var lastUpdateCheckDate: Date?
@@ -17,26 +17,29 @@ final class UpdateManager: NSObject, ObservableObject {
     static var isInstallingUpdate = false
     
     private override init() {
-        self.updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
-        self.updater = updaterController.updater
         super.init()
         
-        canCheckForUpdates = updater.canCheckForUpdates
+        // Create updater controller AFTER super.init so we can pass self as delegate
+        let controller = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: self,
+            userDriverDelegate: nil
+        )
+        self.updaterController = controller
+        self.updater = controller.updater
+        
+        canCheckForUpdates = controller.updater.canCheckForUpdates
     }
     
     /// Check for updates manually (shows UI if update available)
     func checkForUpdates() {
-        updater.checkForUpdates()
+        updater?.checkForUpdates()
     }
     
     /// The feed URL — must match your appcast.xml location
     /// Set this in Info.plist as SUFeedURL or programmatically
     func setFeedURL(_ url: URL) {
-        updater.setFeedURL(url)
+        updater?.setFeedURL(url)
     }
 }
 
@@ -46,12 +49,14 @@ extension UpdateManager: SPUUpdaterDelegate {
     /// Called when Sparkle wants to install an update on quit.
     /// We set the flag so AppDelegate allows actual termination.
     func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem, immediateInstallationBlock: @escaping () -> Void) {
+        print("🔄 [UpdateManager] Sparkle will install update - allowing termination")
         Self.isInstallingUpdate = true
         immediateInstallationBlock()
     }
     
     /// Called right before Sparkle installs the update
     func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
+        print("🔄 [UpdateManager] Sparkle installing update: \(item.displayVersionString)")
         Self.isInstallingUpdate = true
     }
 }
