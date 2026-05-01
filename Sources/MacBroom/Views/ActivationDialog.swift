@@ -2,10 +2,10 @@ import SwiftUI
 
 struct ActivationWindow: View {
     @ObservedObject var licenseManager: LicenseManager
-    @State private var licenseKey: String = ""
+    @State private var activationInput: String = ""
     @State private var isHoveringBuy: Bool = false
     
-    private let websiteURL = "https://macbroom.com"
+    private let websiteURL = "https://alheekmahlib.github.io/macbroom-website"
     
     var body: some View {
         VStack(spacing: 0) {
@@ -28,69 +28,47 @@ struct ActivationWindow: View {
             }
             .padding(.top, 32)
             
-            Text("Activate MacBroom")
+            Text("Activate MacBroom Pro")
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .padding(.top, 16)
             
-            Text("Enter your license key to unlock all features")
+            Text("Unlock all premium features")
                 .font(.system(size: 13))
                 .foregroundColor(.white.opacity(0.5))
                 .padding(.top, 4)
             
-            // Input
-            VStack(alignment: .leading, spacing: 6) {
-                TextField("MACBROOM-XXXX-XXXX-XXXX-XXXX", text: $licenseKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 14, design: .monospaced))
-                    .padding(4)
-                
-                if let error = licenseManager.activationError {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 10))
-                        Text(error)
-                            .font(.system(size: 11))
-                    }
-                    .foregroundColor(.red)
-                }
-                
-                if licenseManager.activationSuccess {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 10))
-                        Text("Activated successfully!")
-                            .font(.system(size: 11))
-                    }
-                    .foregroundColor(.green)
-                }
+            // Price badge
+            HStack(spacing: 6) {
+                Image(systemName: "tag.fill")
+                    .font(.system(size: 11))
+                Text("$9.99 — One-time purchase")
+                    .font(.system(size: 13, weight: .semibold))
             }
-            .padding(.horizontal, 32)
-            .padding(.top, 20)
+            .foregroundColor(Color(red: 0.40, green: 0.55, blue: 1.0))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(Color(red: 0.40, green: 0.55, blue: 1.0).opacity(0.15))
+            )
+            .padding(.top, 12)
             
-            // Buttons
+            // Purchase button (primary)
             VStack(spacing: 10) {
-                // Activate
+                // Buy via Paddle
                 Button(action: {
-                    Task {
-                        await licenseManager.activate(key: licenseKey)
-                    }
+                    licenseManager.openPurchase()
                 }) {
                     HStack(spacing: 8) {
-                        if licenseManager.isActivating {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .tint(.white)
-                        } else {
-                            Image(systemName: "key.fill")
-                                .font(.system(size: 12, weight: .bold))
-                        }
-                        Text(licenseManager.isActivating ? "Activating..." : "I have a License Key")
+                        Image(systemName: "cart.fill")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Purchase License — $9.99")
                             .font(.system(size: 14, weight: .semibold))
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 14)
                     .background(
                         LinearGradient(
                             colors: [Color(red: 0.25, green: 0.45, blue: 0.95), Color(red: 0.40, green: 0.55, blue: 1.0)],
@@ -101,32 +79,92 @@ struct ActivationWindow: View {
                     .cornerRadius(10)
                 }
                 .buttonStyle(.plain)
-                .disabled(licenseKey.count < 10 || licenseManager.isActivating)
-                .opacity(licenseKey.count < 10 ? 0.5 : 1.0)
                 
-                // Buy
-                Button(action: {
-                    if let url = URL(string: websiteURL) {
-                        NSWorkspace.shared.open(url)
-                    }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "cart.fill")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Purchase a License")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundColor(Color(red: 0.40, green: 0.55, blue: 1.0))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.04))
-                    .cornerRadius(10)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color(red: 0.40, green: 0.55, blue: 1.0).opacity(0.3), lineWidth: 1)
-                    )
+                // Divider
+                HStack {
+                    VStack { Divider().background(Color.white.opacity(0.15)) }
+                    Text("or activate with order ID")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.3))
+                    VStack { Divider().background(Color.white.opacity(0.15)) }
                 }
-                .buttonStyle(.plain)
+                .padding(.vertical, 4)
+                
+                // Transaction ID input
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Enter your Paddle Order ID", text: $activationInput)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 13, design: .monospaced))
+                        .padding(4)
+                    
+                    if let error = licenseManager.activationError {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 10))
+                            Text(error)
+                                .font(.system(size: 11))
+                        }
+                        .foregroundColor(.red)
+                    }
+                    
+                    if licenseManager.activationSuccess {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 10))
+                            Text("Activated successfully!")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundColor(.green)
+                    }
+                    
+                    // Activate button
+                    Button(action: {
+                        Task {
+                            await licenseManager.activateWithPaddle(transactionId: activationInput)
+                        }
+                    }) {
+                        HStack(spacing: 8) {
+                            if licenseManager.isActivating {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "key.fill")
+                                    .font(.system(size: 12, weight: .bold))
+                            }
+                            Text(licenseManager.isActivating ? "Verifying..." : "Activate with Order ID")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(Color(red: 0.40, green: 0.55, blue: 1.0))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(red: 0.40, green: 0.55, blue: 1.0).opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(activationInput.count < 5 || licenseManager.isActivating)
+                    .opacity(activationInput.count < 5 ? 0.5 : 1.0)
+                    
+                    // Lookup order
+                    Button(action: {
+                        licenseManager.openOrderLookup()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 10))
+                            Text("Find my Order ID")
+                                .font(.system(size: 11))
+                                .underline()
+                        }
+                        .foregroundColor(.white.opacity(0.4))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+                }
                 
                 // Skip
                 Button(action: {
@@ -140,12 +178,12 @@ struct ActivationWindow: View {
                 .padding(.top, 4)
             }
             .padding(.horizontal, 32)
-            .padding(.top, 20)
+            .padding(.top, 16)
             .padding(.bottom, 28)
             
             Spacer()
         }
-        .frame(width: 400, height: 460)
+        .frame(width: 400, height: 540)
         .background(
             LinearGradient(
                 colors: [Color(red: 0.10, green: 0.13, blue: 0.28), Color(red: 0.07, green: 0.09, blue: 0.20)],
