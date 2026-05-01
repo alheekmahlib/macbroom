@@ -31,6 +31,9 @@ cp "$ASSETS/MenuBarIcon.png" "$RESOURCES/" 2>/dev/null || true
 cp "$ASSETS/Logo.png" "$RESOURCES/" 2>/dev/null || true
 cp "$ASSETS/AppIcon.png" "$RESOURCES/" 2>/dev/null || true
 
+# Copy Info.plist (contains version number)
+cp "$ASSETS/Info.plist" "$APP/Contents/" 2>/dev/null || true
+
 echo "🔏 Re-signing..."
 codesign --force --deep --sign - "$APP"
 
