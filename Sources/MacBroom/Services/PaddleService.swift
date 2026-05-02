@@ -4,7 +4,8 @@ import AppKit
 // MARK: - Paddle Configuration
 struct PaddleConfig {
     // Sandbox
-    static let sandboxApiKey = "REDACTED_PADDLE_KEY"
+    // Sandbox — loaded from Secrets.swift (excluded from git)
+    static let sandboxApiKey = Secrets.paddleSandboxApiKey
     static let sandboxApiBase = "https://sandbox-api.paddle.com"
     
     // Production (set when going live)

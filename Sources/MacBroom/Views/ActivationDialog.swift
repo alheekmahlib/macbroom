@@ -83,7 +83,7 @@ struct ActivationWindow: View {
                 // Divider
                 HStack {
                     VStack { Divider().background(Color.white.opacity(0.15)) }
-                    Text("or activate with order ID")
+                    Text("or activate with Transaction ID")
                         .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.3))
                     VStack { Divider().background(Color.white.opacity(0.15)) }
@@ -92,7 +92,7 @@ struct ActivationWindow: View {
                 
                 // Transaction ID input
                 VStack(alignment: .leading, spacing: 6) {
-                    PasteableTextField(placeholder: "Enter your Paddle Order ID", text: $activationInput)
+                    PasteableTextField(placeholder: "txn_01xxx... (from Paddle email)", text: $activationInput)
                         .frame(height: 24)
                         .padding(4)
                     
@@ -131,7 +131,7 @@ struct ActivationWindow: View {
                                 Image(systemName: "key.fill")
                                     .font(.system(size: 12, weight: .bold))
                             }
-                            Text(licenseManager.isActivating ? "Verifying..." : "Activate with Order ID")
+                            Text(licenseManager.isActivating ? "Verifying..." : "Activate with Transaction ID")
                                 .font(.system(size: 13, weight: .semibold))
                         }
                         .foregroundColor(Color(red: 0.40, green: 0.55, blue: 1.0))
@@ -155,7 +155,7 @@ struct ActivationWindow: View {
                         HStack(spacing: 4) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 10))
-                            Text("Find my Order ID")
+                            Text("Find my Transaction ID")
                                 .font(.system(size: 11))
                                 .underline()
                         }
