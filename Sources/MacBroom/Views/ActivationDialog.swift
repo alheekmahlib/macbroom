@@ -5,7 +5,7 @@ struct ActivationWindow: View {
     @State private var activationInput: String = ""
     @State private var isHoveringBuy: Bool = false
     
-    private let websiteURL = "https://alheekmahlib.github.io/macbroom-website"
+    private let websiteURL = "https://macbroom.com"
     
     var body: some View {
         VStack(spacing: 0) {

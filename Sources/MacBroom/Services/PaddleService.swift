@@ -44,7 +44,7 @@ struct PaddleConfig {
     static let productionCheckoutURL = "" // Create in production dashboard when going live
     
     // Website pricing page
-    static let websitePricingURL = "https://alheekmahlib.github.io/macbroom-website#pricing"
+    static let websitePricingURL = "https://macbroom.com#pricing"
 }
 
 // MARK: - Paddle API Responses
