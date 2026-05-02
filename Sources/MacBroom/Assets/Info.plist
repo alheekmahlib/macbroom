@@ -37,7 +37,7 @@
     
     <!-- Sparkle Update Settings -->
     <key>SUFeedURL</key>
-    <string>https://alheekmahlib.github.io/macbroom-website/appcast.xml</string>
+    <string>https://macbroom.com/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>l6hKCNeH+rZkRsSoBn6jiet+pRc4gcEkWxkiMLLcNh0=</string>
     <key>SUAutomaticallyUpdate</key>
